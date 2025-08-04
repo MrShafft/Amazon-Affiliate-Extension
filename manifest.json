@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "Amazon Affiliate Link Enhancer",
+  "version": "1.0",
+  "description": "Automatically append your Amazon affiliate tag to product page links.",
+  "permissions": ["scripting", "tabs", "activeTab", "storage"],
+  "host_permissions": [
+    "*://www.amazon.com/*",
+    "*://www.amazon.co.uk/*",
+    "*://www.amazon.de/*",
+    "*://www.amazon.ca/*",
+    "*://www.amazon.in/*"
+  ],
+  "action": {
+    "default_popup": "dist/index.html",
+    "default_icon": {
+      "16": "icon.png",
+      "48": "icon.png",
+      "128": "icon.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://www.amazon.com/*",
+        "*://www.amazon.co.uk/*",
+        "*://www.amazon.de/*",
+        "*://www.amazon.ca/*",
+        "*://www.amazon.in/*"
+      ],
+      "js": ["content.js"]
+    }
+  ]
+}
