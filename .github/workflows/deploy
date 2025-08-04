@@ -1,0 +1,74 @@
+name: Build, Version, and Deploy Extension
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: ⬇️ Checkout repository
+        uses: actions/checkout@v3
+
+      - name: 🕒 Generate version tag
+        id: version
+        run: |
+          VERSION="v$(date +'%Y.%m.%d')-$(git rev-parse --short HEAD)"
+          echo "version_tag=$VERSION" >> $GITHUB_OUTPUT
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: 🛠 Bump version in manifest.json
+        run: |
+          jq --arg v "${VERSION/v/}" '.version = $v' manifest.json > tmp.$$.json && mv tmp.$$.json manifest.json
+
+      - name: 🧾 Generate Changelog from Git Log
+        id: changelog
+        run: |
+          LOG=$(git log -1 --pretty=format:"%s%n%n%b")
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$LOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: 📥 Install dependencies
+        run: npm install
+
+      - name: 🔧 Build Vite project
+        run: |
+          sed -i 's|base:.*|base: "./",|' vite.config.js || echo "No base config to update"
+          npm run build
+
+      - name: 📁 Copy dist to extension root
+        run: |
+          mkdir -p chrome_build
+          cp -r dist/* chrome_build/
+          cp manifest.json background.js content.js icon.png chrome_build/ || echo "Some files may be missing"
+
+      - name: 🚀 Deploy popup UI to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+
+      - name: 📦 Create Chrome Extension ZIP
+        run: |
+          cd chrome_build
+          zip -r ../extension.zip ./
+          cd ..
+
+      - name: 📤 Upload ZIP to GitHub Release with version + changelog
+        uses: softprops/action-gh-release@v1
+        with:
+          name: ${{ steps.version.outputs.version_tag }}
+          tag_name: ${{ steps.version.outputs.version_tag }}
+          body: ${{ steps.changelog.outputs.changelog }}
+          files: extension.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
